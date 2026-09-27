@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 RAIZ_SRC = Path(__file__).resolve().parent
 if str(RAIZ_SRC) not in sys.path:
     sys.path.insert(0, str(RAIZ_SRC))
 
-from agente import responder
+from agente import _llm_aceitavel, responder
 from conhecimento import brl, carregar
+from sessao import carregar as carregar_sessao
+from sessao import limpar as limpar_sessao
+from sessao import salvar as salvar_sessao
 
 
 def _rodar(passos: list[str]) -> tuple[str, dict]:
@@ -23,6 +27,53 @@ def _rodar(passos: list[str]) -> tuple[str, dict]:
         historico.append({"role": "assistant", "content": resultado["texto"]})
         ultima = resultado["texto"]
     return ultima, memoria
+
+
+def _extras(base) -> int:
+    falhas = 0
+    texto_bom = f"Em outubro de 2025, alimentação soma {brl(base.soma_categoria('alimentacao'))}."
+    checks = [
+        (
+            "trava_valor",
+            not _llm_aceitavel("O estorno de R$ 9.999,99 já caiu.", base, "estorno"),
+        ),
+        (
+            "trava_estorno",
+            not _llm_aceitavel("O estorno já foi aprovado.", base, "estorno"),
+        ),
+        (
+            "trava_aceita",
+            _llm_aceitavel(texto_bom, base, "gastos"),
+        ),
+        (
+            "trava_recusa",
+            not _llm_aceitavel("Não tenho senha.", base, "recusa"),
+        ),
+    ]
+    with tempfile.TemporaryDirectory() as pasta:
+        caminho = Path(pasta) / "conversa.json"
+        salvar_sessao(
+            [{"role": "user", "content": "Não reconheço essa compra."}],
+            {"decisao": "contestar", "etapa": "decidido"},
+            caminho,
+        )
+        guardada = carregar_sessao(caminho)
+        checks.append(
+            (
+                "sessao",
+                guardada is not None and guardada["memoria"].get("decisao") == "contestar",
+            )
+        )
+        limpar_sessao(caminho)
+        checks.append(("sessao_limpa", carregar_sessao(caminho) is None))
+
+    for nome, ok in checks:
+        if ok:
+            print(f"ok {nome}")
+        else:
+            falhas += 1
+            print(f"FALHOU {nome}")
+    return falhas
 
 
 def main() -> int:
@@ -164,6 +215,30 @@ def main() -> int:
             "contem": ["não reconhece", "7 dias", "não é garantido"],
             "nao_contem": [],
         },
+        {
+            "id": "contexto",
+            "passos": ["Não reconheço essa compra.", "O que eu faço agora?"],
+            "contem": ["7 dias", "25/10/2025", "não é garantido"],
+            "nao_contem": ["Não tenho essa informação"],
+        },
+        {
+            "id": "nao_solto",
+            "passos": ["Quanto gastei com alimentação?", "Não"],
+            "contem": ["reconhece essa compra"],
+            "nao_contem": ["você não reconhece a compra"],
+        },
+        {
+            "id": "explica_bloqueio",
+            "passos": ["Como funciona o bloqueio temporário?"],
+            "contem": ["Impede novas compras", "reversível"],
+            "nao_contem": ["você quer o bloqueio"],
+        },
+        {
+            "id": "prazo_analise",
+            "passos": ["Quanto foi a análise?"],
+            "contem": ["10 dias úteis", "não é garantido"],
+            "nao_contem": [brl(base.total_saidas)],
+        },
     ]
 
     falhas = 0
@@ -184,7 +259,10 @@ def main() -> int:
         else:
             print(f"ok {caso['id']}")
 
-    print(f"\n{len(casos) - falhas}/{len(casos)} casos passaram.")
+    extras = _extras(base)
+    falhas += extras
+    total = len(casos) + 6
+    print(f"\n{total - falhas}/{total} casos passaram.")
     return 1 if falhas else 0
 
 

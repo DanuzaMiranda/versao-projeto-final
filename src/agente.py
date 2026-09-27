@@ -7,8 +7,8 @@ import os
 import re
 import urllib.error
 import urllib.request
-from pathlib import Path
 
+from config import carregar_env as _carregar_env
 from conhecimento import (
     ALIASES_CATEGORIA,
     BUSCA_DESCRICAO,
@@ -19,20 +19,6 @@ from conhecimento import (
     tem_termo,
 )
 from prompts import SYSTEM_PROMPT
-
-RAIZ = Path(__file__).resolve().parent.parent
-
-
-def _carregar_env() -> None:
-    caminho = RAIZ / ".env"
-    if not caminho.exists():
-        return
-    for linha in caminho.read_text(encoding="utf-8").splitlines():
-        linha = linha.strip()
-        if not linha or linha.startswith("#") or "=" not in linha:
-            continue
-        chave, valor = linha.split("=", 1)
-        os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
 
 
 def tem_modelo() -> bool:
@@ -77,11 +63,21 @@ def _lancamentos_por_descricao(base: Base, texto: str) -> list[dict]:
     return unicos
 
 
-def _fala_de_gasto(texto: str) -> bool:
-    return any(
-        termo in texto
-        for termo in ("gastei", "gasto", "gastos", "paguei", "quanto foi", "quanto saiu")
-    )
+def _pede_total(texto: str) -> bool:
+    return any(termo in texto for termo in ("gastei", "gastos", "paguei", "quanto saiu", "no mes"))
+
+
+def _ultima_fala_assistente(historico: list[dict] | None) -> str:
+    if not historico:
+        return ""
+    for item in reversed(historico):
+        if item.get("role") == "assistant":
+            return normalizar(item.get("content", ""))
+    return ""
+
+
+def _perguntou_se_reconhece(historico: list[dict] | None) -> bool:
+    return "reconhece essa compra" in _ultima_fala_assistente(historico)
 
 
 def _alerta_aberto(base: Base, memoria: dict) -> str:
@@ -139,11 +135,10 @@ def _produtos_baixos(base: Base) -> str:
     return " ".join(linhas)
 
 
-def _resposta_base(mensagem: str, memoria: dict, base: Base) -> dict:
+def _resposta_base(mensagem: str, memoria: dict, base: Base, historico: list[dict] | None = None) -> dict:
     texto = normalizar(mensagem)
 
     if any(termo in texto for termo in ("ignore as regras", "ignore as instrucoes", "finja que")):
-        memoria["etapa"] = "aguardando_reconhecimento"
         return _resposta(
             "Não confirmo estorno. A análise leva até "
             f"{base.regras['contestacao']['analise_dias_uteis']} dias úteis "
@@ -189,24 +184,24 @@ def _resposta_base(mensagem: str, memoria: dict, base: Base) -> dict:
             "golpe",
         )
 
-    if texto in {"sim", "s"} and memoria.get("etapa") == "aguardando_reconhecimento":
+    perguntou = _perguntou_se_reconhece(historico) and memoria.get("decisao") is None
+    if texto in {"sim", "s"} and perguntou:
         memoria["decisao"] = "reconhecida"
         memoria["etapa"] = "decidido"
         return _resposta(_texto_reconhecida(base), ["transacoes.csv", "regras_banco.json"], "reconhecer")
 
-    if texto in {"nao", "n", "e agora", "o que faco", "o que eu faco", "o que faco agora"} and memoria.get("etapa") == "aguardando_reconhecimento" and memoria.get("decisao") is None:
-        if texto in {"e agora", "o que faco", "o que eu faco", "o que faco agora"}:
-            return _resposta(
-                f"A compra em aberto é {base.resumo_alerta()}. "
-                "Se você reconhece, eu registro isso aqui. "
-                "Se não reconhece, o próximo passo é contestar. "
-                f"{base.regras['contestacao']['contagem']} O estorno não é garantido.",
-                ["transacoes.csv", "regras_banco.json"],
-                "proximo_passo",
-            )
+    if texto in {"nao", "n"} and perguntou:
         memoria["decisao"] = "contestar"
         memoria["etapa"] = "decidido"
         return _resposta(_texto_contestacao(base), ["regras_banco.json", "transacoes.csv"], "contestar")
+
+    if texto in {"sim", "s", "nao", "n"} and memoria.get("decisao") is None:
+        return _resposta(
+            f"Para eu registrar uma decisão, responda sobre a compra em alerta: {base.resumo_alerta()}. "
+            "Diga se você reconhece essa compra.",
+            ["transacoes.csv"],
+            "proximo_passo",
+        )
 
     if any(termo in texto for termo in ("nao reconheco", "nao fui eu", "nao foi eu", "contestar", "desconheco")):
         memoria["decisao"] = "contestar"
@@ -220,7 +215,12 @@ def _resposta_base(mensagem: str, memoria: dict, base: Base) -> dict:
         memoria["etapa"] = "decidido"
         return _resposta(_texto_reconhecida(base), ["transacoes.csv", "regras_banco.json"], "reconhecer")
 
-    if "bloque" in texto:
+    explica_bloqueio = any(termo in texto for termo in ("como funciona", "o que e o bloqueio", "o que faz o bloqueio"))
+    quer_bloquear = any(
+        termo in texto
+        for termo in ("quero bloquear", "pode bloquear", "bloquear o", "bloqueia o", "fazer o bloqueio")
+    )
+    if quer_bloquear and not explica_bloqueio:
         memoria["decisao"] = "bloquear"
         memoria["etapa"] = "decidido"
         return _resposta(_texto_bloqueio(base), ["produtos_financeiros.json", "regras_banco.json"], "bloquear")
@@ -281,7 +281,16 @@ def _resposta_base(mensagem: str, memoria: dict, base: Base) -> dict:
             "simulacao",
         )
 
-    if _fala_de_gasto(texto) or "quanto entrou" in texto or "meu salario" in texto:
+    if "analise" in texto and any(termo in texto for termo in ("quanto", "prazo", "demora")):
+        return _resposta(
+            "A análise da contestação leva até "
+            f"{base.regras['contestacao']['analise_dias_uteis']} dias úteis. "
+            "O estorno não é garantido. Não tenho, nesta base, um estorno aprovado para a Marina.",
+            ["regras_banco.json"],
+            "estorno",
+        )
+
+    if _pede_total(texto) or "quanto foi" in texto or "quanto entrou" in texto or "meu salario" in texto:
         descricao = _lancamentos_por_descricao(base, texto)
         if descricao and not _categoria_pedida(texto):
             total = sum(item["valor"] for item in descricao)
@@ -317,7 +326,7 @@ def _resposta_base(mensagem: str, memoria: dict, base: Base) -> dict:
                 ["transacoes.csv"],
                 "gastos",
             )
-        if _fala_de_gasto(texto):
+        if _pede_total(texto):
             return _resposta(
                 f"Em outubro de 2025, as saídas somam {brl(base.total_saidas)}. "
                 f"Desse total, {brl(base.alerta['valor'])} ainda estão em alerta.",
@@ -509,7 +518,7 @@ def responder(
 ) -> dict:
     base = base or carregar()
     memoria = memoria if memoria is not None else {}
-    resultado = _resposta_base(mensagem, memoria, base)
+    resultado = _resposta_base(mensagem, memoria, base, historico)
     if not usar_llm:
         return resultado
     texto_modelo = _chamar_modelo(mensagem, historico or [], base)

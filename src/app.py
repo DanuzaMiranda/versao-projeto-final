@@ -13,6 +13,9 @@ if str(RAIZ_SRC) not in sys.path:
 
 from agente import responder, tem_modelo
 from conhecimento import abertura, carregar
+from sessao import carregar as carregar_sessao
+from sessao import limpar as limpar_sessao
+from sessao import salvar as salvar_sessao
 
 BASE = carregar()
 
@@ -33,13 +36,22 @@ st.markdown(
 )
 
 
+def _gravar() -> None:
+    salvar_sessao(st.session_state.mensagens, st.session_state.memoria)
+
+
 def _iniciar() -> None:
-    if "mensagens" not in st.session_state:
-        st.session_state.mensagens = [
-            {"role": "assistant", "content": abertura(BASE)}
-        ]
-    if "memoria" not in st.session_state:
-        st.session_state.memoria = {"etapa": "aguardando_reconhecimento"}
+    if "mensagens" not in st.session_state or "memoria" not in st.session_state:
+        guardada = carregar_sessao()
+        if guardada:
+            st.session_state.mensagens = guardada["mensagens"]
+            st.session_state.memoria = guardada["memoria"]
+        else:
+            st.session_state.mensagens = [
+                {"role": "assistant", "content": abertura(BASE)}
+            ]
+            st.session_state.memoria = {"etapa": "aguardando_reconhecimento"}
+            _gravar()
     if "usar_llm" not in st.session_state:
         st.session_state.usar_llm = tem_modelo()
 
@@ -59,6 +71,7 @@ def _enviar(texto: str) -> None:
     st.session_state.mensagens.append(
         {"role": "assistant", "content": resultado["texto"]}
     )
+    _gravar()
 
 
 def _decisao_legivel() -> str:
@@ -96,9 +109,11 @@ with st.sidebar:
         "A Vera não bloqueia cartão, não pede senha e não promete estorno."
     )
     if st.button("Recomeçar conversa"):
+        limpar_sessao()
         del st.session_state.mensagens
         del st.session_state.memoria
         st.rerun()
+    st.caption("A conversa fica neste computador até você recomeçar.")
 
 st.title("Vera")
 st.write(

@@ -5,6 +5,7 @@ __pycache__/
 .mplconfig/
 .env
 .streamlit/secrets.toml
+.sessao/
 
 # Dataset grande do Kaggle (o notebook baixa na hora de rodar)
 creditcard.csv

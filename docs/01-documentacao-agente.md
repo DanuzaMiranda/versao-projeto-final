@@ -56,6 +56,7 @@ flowchart TD
     I -->|Não| G
     G --> K[Mensagem na conversa]
     J --> K
+    K --> L[Arquivo da sessão neste computador]
 ```
 
 ### Componentes
@@ -63,6 +64,7 @@ flowchart TD
 | Componente | Descrição |
 |------------|-----------|
 | Interface | Chat em Streamlit, com a decisão da sessão na barra lateral |
+| Memória | A conversa e a decisão ficam em `.sessao/`, só neste computador, até a pessoa recomeçar |
 | Núcleo | `src/agente.py` escolhe a resposta a partir dos arquivos |
 | Ficha | `src/conhecimento.py` soma gastos, reserva e o alerta |
 | Modelo | Opcional, API compatível com o formato da OpenAI. Sem chave, o protótipo continua no modo base |

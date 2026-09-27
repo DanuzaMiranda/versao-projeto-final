@@ -1,6 +1,6 @@
 # Pitch (3 minutos)
 
-O vídeo fica com quem apresenta. O roteiro abaixo cabe em cerca de três minutos, em fala pausada.
+**Status: em andamento.** O roteiro abaixo está escrito. Falta gravar o vídeo de até 3 minutos e colar o link no fim deste arquivo.
 
 ## Roteiro
 
@@ -29,7 +29,7 @@ Na barra lateral, a decisão da sessão muda depois da quarta fala.
 
 ### 4. Diferencial (30 segundos)
 
-O estudo de detecção deste repositório mostra como achar fraude rara sem se iludir com a acurácia. A Vera faz a outra ponta: a pessoa que recebeu o aviso. Ela não inventa taxa, não pede senha e não trata o notebook como se ele tivesse julgado a compra da Marina. Dá para testar as 22 falas com `python src/avaliar.py`.
+O estudo de detecção deste repositório mostra como achar fraude rara sem se iludir com a acurácia. A Vera faz a outra ponta: a pessoa que recebeu o aviso. Ela não inventa taxa, não pede senha e não trata o notebook como se ele tivesse julgado a compra da Marina. Dá para repetir as checagens com `python src/avaliar.py`.
 
 ## Checklist do pitch
 
@@ -41,6 +41,6 @@ O estudo de detecção deste repositório mostra como achar fraude rara sem se i
 
 ## Link do vídeo
 
-Grave a tela com o chat aberto e publique o link aqui quando o vídeo estiver pronto.
+Este é o único item da entrega que depende da gravação. O roteiro acima já cobre problema, solução, demonstração e diferencial. Grave a tela do chat, com a sua voz, em até 3 minutos, e cole o link no lugar da linha abaixo.
 
 [Link do vídeo]

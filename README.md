@@ -15,7 +15,7 @@ Este repositório também guarda o estudo de detecção que motivou o tema. O no
 | 3. Prompts | [docs/03-prompts.md](docs/03-prompts.md) e [src/prompts.py](src/prompts.py) |
 | 4. Aplicação | [src/app.py](src/app.py) |
 | 5. Avaliação | [docs/04-metricas.md](docs/04-metricas.md) e [src/avaliar.py](src/avaliar.py) |
-| 6. Pitch | [docs/05-pitch.md](docs/05-pitch.md) |
+| 6. Pitch | [docs/05-pitch.md](docs/05-pitch.md) — em andamento |
 
 ## Como conversar com a Vera
 
@@ -27,9 +27,19 @@ python src/avaliar.py
 streamlit run src/app.py
 ```
 
-`python src/avaliar.py` roda 22 perguntas fixas no modo base, sem chave de API. Na última execução, 22 passaram.
+`python src/avaliar.py` roda 32 checagens no modo base, sem chave de API. Na última execução, 32 passaram.
 
-O chat abre sem chave. Para uma resposta generativa, copie `.env.example` para `.env` e preencha `OPENAI_API_KEY`. O mesmo formato aceita um endpoint local, como o Ollama, em `OPENAI_BASE_URL`. A fala do modelo só substitui a da base se todos os valores em reais já existirem na ficha calculada.
+O chat abre sem chave e guarda a conversa neste computador até você clicar em recomeçar. Para uma resposta generativa, copie `.env.example` para `.env` e preencha `OPENAI_API_KEY`. O mesmo formato aceita um endpoint local, como o Ollama, em `OPENAI_BASE_URL`. A fala do modelo só substitui a da base se todos os valores em reais já existirem na ficha calculada.
+
+## O que a entrega cobre
+
+| Pedido | Situação |
+|--------|----------|
+| Documentação, base, prompts e chat | Prontos em `docs/`, `data/` e `src/` |
+| Resposta presa aos arquivos, com fonte | 26 conversas de teste |
+| Próximo passo e memória da decisão | A contestação continua na fala seguinte e ao reabrir o chat |
+| Trava do modelo generativo | Valor inventado e estorno aprovado são descartados |
+| Pitch | Em andamento. O roteiro está em `docs/05-pitch.md`. Falta gravar o vídeo |
 
 A compra em alerta da sessão é Eletrônicos Online INT, R$ 2.480,00, em 18/10/2025 às 02:14, no cartão final 4412.
 
